@@ -1,0 +1,39 @@
+# .github/workflows/ci_mlflow.yml
+name: MLFlow Continuous Integration (Skilled)
+
+on:
+  push:
+    branches:
+      - main # Jalankan workflow setiap kali ada push ke branch utama
+
+jobs:
+  train_and_log:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9' # Sesuaikan versi Python Anda
+
+    # 1. Instal Dependencies (Termasuk DagsHub)
+    - name: Install Dependencies
+      run: |
+        pip install dagshub mlflow pandas scikit-learn numpy
+
+    # 2. RUN MLFlow Project (Level BASIC: Re-training)
+    - name: Run MLFlow Project (Train Model)
+      # Catatan: Karena Anda menggunakan dagshub.init() di modelling.py, 
+      # Anda mungkin perlu mengatur DAGSHUB_TOKEN sebagai GitHub Secret di sini
+      run: |
+        mlflow run ./MLProject -e train
+        
+    # 3. Upload MLFlow Artifacts ke GitHub (Level SKILLED)
+    - name: Upload MLFlow Artifacts to GitHub
+      uses: actions/upload-artifact@v4
+      with:
+        name: trained-model-mlruns
+        path: mlruns/ # Folder mlruns/ berisi model, metrics, dan run ID terbaru
