@@ -1,0 +1,8 @@
+name: CI-MLFlow-Project
+
+conda_env: conda.yaml
+
+entry_points:
+  # Nama entry point yang akan dipanggil di workflow CI
+  train:
+    command: "python modelling.py"
