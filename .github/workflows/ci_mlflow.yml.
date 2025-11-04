@@ -1,15 +1,18 @@
-# .github/workflows/ci_mlflow.yml
-name: MLFlow Continuous Integration (Skilled)
+name: MLFlow CI/CD (Advance)
 
 on:
   push:
     branches:
-      - main # Jalankan workflow setiap kali ada push ke branch utama
+      - main 
 
 jobs:
-  train_and_log:
+  train_and_deploy:
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: read
+      packages: write 
+      
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
@@ -17,23 +20,71 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9' # Sesuaikan versi Python Anda
+        python-version: '3.9' 
 
-    # 1. Instal Dependencies (Termasuk DagsHub)
     - name: Install Dependencies
       run: |
         pip install dagshub mlflow pandas scikit-learn numpy
 
-    # 2. RUN MLFlow Project (Level BASIC: Re-training)
+    # 2. RUN MLFlow Project (LEVEL BASIC)
     - name: Run MLFlow Project (Train Model)
-      # Catatan: Karena Anda menggunakan dagshub.init() di modelling.py, 
-      # Anda mungkin perlu mengatur DAGSHUB_TOKEN sebagai GitHub Secret di sini
+      # Menggunakan DAGSHUB_TOKEN yang BARU (Sudah di-set)
+      env:
+        DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }} 
       run: |
         mlflow run ./MLProject -e train
         
-    # 3. Upload MLFlow Artifacts ke GitHub (Level SKILLED)
+    # 3. Upload MLFlow Artifacts (LEVEL SKILLED)
     - name: Upload MLFlow Artifacts to GitHub
       uses: actions/upload-artifact@v4
       with:
         name: trained-model-mlruns
-        path: mlruns/ # Folder mlruns/ berisi model, metrics, dan run ID terbaru
+        path: mlruns/ 
+        
+    # --- LEVEL ADVANCE (4 POIN): DOCKERISASI & TAUTAN ---
+    
+    # 4. Login ke Docker Hub
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    # 5. Dapatkan URI Model Terbaru
+    - name: Find Latest MLFlow Run ID and Model URI
+      id: find_uri
+      run: |
+        LATEST_RUN_ID=$(ls -t mlruns/0 | head -1)
+        MODEL_URI="runs:/${LATEST_RUN_ID}/model"
+        
+        echo "model_uri=$MODEL_URI" >> $GITHUB_OUTPUT
+        echo "LATEST_RUN_ID=$LATEST_RUN_ID" >> $GITHUB_OUTPUT
+
+    # 6. Build Docker Image
+    - name: Build Docker Image with MLFlow
+      run: |
+        DOCKER_IMAGE_TAG=${{ secrets.DOCKER_USERNAME }}/workflow-ci-model:${{ steps.find_uri.outputs.LATEST_RUN_ID }}
+        
+        mlflow models build-docker \
+        --model-uri ${{ steps.find_uri.outputs.model_uri }} \
+        --name $DOCKER_IMAGE_TAG \
+        --env-manager=conda
+
+    # 7. Push Docker Image ke Docker Hub
+    - name: Push Docker Image
+      run: |
+        DOCKER_IMAGE_TAG=${{ secrets.DOCKER_USERNAME }}/workflow-ci-model:${{ steps.find_uri.outputs.LATEST_RUN_ID }}
+        docker push $DOCKER_IMAGE_TAG
+        
+    # 8. BUAT TAUTAN KE DOCKER HUB (Artifact yang Anda cari)
+    - name: Create Docker Hub Link File
+      run: |
+        DOCKER_URL="https://hub.docker.com/r/${{ secrets.DOCKER_USERNAME }}/workflow-ci-model/tags"
+        echo $DOCKER_URL > Tautan_ke_Docker_Hub.txt
+        
+    # 9. Upload Tautan ke Docker Hub sebagai Artifact
+    - name: Upload Docker Hub Link Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Tautan_ke_Docker_Hub
+        path: Tautan_ke_Docker_Hub.txt
